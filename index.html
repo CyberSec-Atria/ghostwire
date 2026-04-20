@@ -1,1 +1,825 @@
-hello world
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost in the Wire — CTF</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  /* ── Reset & base ─────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green:   #00ff41;
+    --green2:  #00c832;
+    --green-d: #003b0f;
+    --red:     #ff2d55;
+    --amber:   #ffb800;
+    --bg:      #020b05;
+    --bg2:     #040f07;
+    --border:  #0d3318;
+    --text:    #b0ffca;
+    --dim:     #3a6645;
+    --font:    'Share Tech Mono', monospace;
+    --head:    'Orbitron', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Scanline overlay ─────────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,255,65,0.02) 2px,
+      rgba(0,255,65,0.02) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── Grid noise ───────────────────────────────────────────── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0,255,65,0.08) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Header ───────────────────────────────────────────────── */
+  header {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 48px 24px 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ascii-logo {
+    font-size: clamp(5px, 1.2vw, 11px);
+    color: var(--green);
+    text-shadow: 0 0 8px var(--green);
+    line-height: 1.2;
+    letter-spacing: 0;
+    white-space: pre;
+    display: inline-block;
+    margin-bottom: 16px;
+    animation: flicker 8s infinite;
+  }
+
+  @keyframes flicker {
+    0%,95%,100% { opacity: 1; }
+    96% { opacity: 0.7; }
+    97% { opacity: 1; }
+    98% { opacity: 0.5; }
+    99% { opacity: 1; }
+  }
+
+  .tagline {
+    font-family: var(--head);
+    font-size: clamp(10px, 2vw, 13px);
+    letter-spacing: 0.3em;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .sub-tagline {
+    font-size: 12px;
+    color: var(--dim);
+    letter-spacing: 0.15em;
+  }
+
+  /* ── Nav tabs ─────────────────────────────────────────────── */
+  nav {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+
+  nav button {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--dim);
+    font-family: var(--font);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    padding: 14px 32px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  nav button:hover { color: var(--green); }
+
+  nav button.active {
+    color: var(--green);
+    border-bottom-color: var(--green);
+    text-shadow: 0 0 8px var(--green);
+  }
+
+  /* ── Main layout ──────────────────────────────────────────── */
+  main {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Panel / card ─────────────────────────────────────────── */
+  .panel {
+    border: 1px solid var(--border);
+    background: rgba(4,15,7,0.8);
+    padding: 28px 32px;
+    margin-bottom: 24px;
+    position: relative;
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+    opacity: 0.4;
+  }
+
+  .panel-title {
+    font-family: var(--head);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--green);
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Form elements ────────────────────────────────────────── */
+  .field { margin-bottom: 20px; }
+
+  label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  input, select {
+    width: 100%;
+    background: #010a03;
+    border: 1px solid var(--border);
+    color: var(--green);
+    font-family: var(--font);
+    font-size: 14px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    appearance: none;
+  }
+
+  input:focus, select:focus {
+    border-color: var(--green);
+    box-shadow: 0 0 0 1px var(--green), 0 0 16px rgba(0,255,65,0.1);
+  }
+
+  input::placeholder { color: var(--dim); opacity: 0.5; }
+
+  select option { background: #010a03; }
+
+  /* ── Button ───────────────────────────────────────────────── */
+  .btn {
+    background: transparent;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: var(--head);
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    padding: 12px 32px;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn:hover {
+    background: var(--green);
+    color: #000;
+    box-shadow: 0 0 20px rgba(0,255,65,0.4);
+  }
+
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn:disabled:hover {
+    background: transparent;
+    color: var(--green);
+    box-shadow: none;
+  }
+
+  /* ── Status message ───────────────────────────────────────── */
+  .status {
+    padding: 12px 16px;
+    font-size: 13px;
+    margin-top: 16px;
+    display: none;
+    border-left: 3px solid;
+  }
+
+  .status.show { display: block; }
+  .status.ok   { border-color: var(--green); color: var(--green); background: rgba(0,255,65,0.05); }
+  .status.err  { border-color: var(--red);   color: var(--red);   background: rgba(255,45,85,0.05); }
+  .status.warn { border-color: var(--amber); color: var(--amber); background: rgba(255,184,0,0.05); }
+
+  /* ── Terminal output ──────────────────────────────────────── */
+  .terminal {
+    background: #010a03;
+    border: 1px solid var(--border);
+    padding: 16px;
+    font-size: 13px;
+    max-height: 160px;
+    overflow-y: auto;
+    margin-top: 16px;
+  }
+
+  .terminal::-webkit-scrollbar { width: 4px; }
+  .terminal::-webkit-scrollbar-track { background: #010a03; }
+  .terminal::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .t-line { color: var(--dim); margin-bottom: 2px; }
+  .t-line.ok { color: var(--green); }
+  .t-line.err { color: var(--red); }
+  .t-line.warn { color: var(--amber); }
+
+  /* ── Leaderboard ──────────────────────────────────────────── */
+  .lb-header {
+    display: grid;
+    grid-template-columns: 40px 1fr 100px 80px 120px;
+    gap: 12px;
+    padding: 10px 16px;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--dim);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .lb-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 100px 80px 120px;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(13,51,24,0.5);
+    transition: background 0.15s;
+    cursor: pointer;
+    align-items: center;
+  }
+
+  .lb-row:hover { background: rgba(0,255,65,0.03); }
+
+  .lb-row.top1 { color: var(--green); }
+  .lb-row.top2 { color: #7fff9e; }
+  .lb-row.top3 { color: #4adb6e; }
+
+  .rank {
+    font-family: var(--head);
+    font-size: 13px;
+    color: var(--dim);
+    text-align: center;
+  }
+
+  .rank.gold   { color: #ffd700; text-shadow: 0 0 8px #ffd700; }
+  .rank.silver { color: #c0c0c0; }
+  .rank.bronze { color: #cd7f32; }
+
+  .team-name { font-size: 14px; letter-spacing: 0.05em; }
+
+  .pts {
+    font-family: var(--head);
+    font-size: 15px;
+    color: var(--green);
+    text-shadow: 0 0 8px rgba(0,255,65,0.5);
+    text-align: right;
+  }
+
+  .flags-count {
+    font-size: 12px;
+    color: var(--dim);
+    text-align: center;
+  }
+
+  /* Flag pip track */
+  .flag-pips {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+  }
+
+  .pip {
+    width: 8px;
+    height: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    transition: background 0.3s, border-color 0.3s;
+  }
+
+  .pip.done {
+    background: var(--green);
+    border-color: var(--green);
+    box-shadow: 0 0 4px var(--green);
+  }
+
+  .pip.final.done {
+    background: var(--amber);
+    border-color: var(--amber);
+    box-shadow: 0 0 6px var(--amber);
+  }
+
+  /* ── Team detail modal ────────────────────────────────────── */
+  .modal-bg {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .modal-bg.open { display: flex; }
+
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    width: 100%;
+    max-width: 560px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 32px;
+    position: relative;
+  }
+
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 16px; right: 16px;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-family: var(--font);
+    font-size: 12px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+
+  .modal-close:hover { border-color: var(--red); color: var(--red); }
+
+  .modal-team {
+    font-family: var(--head);
+    font-size: 18px;
+    color: var(--green);
+    text-shadow: 0 0 12px rgba(0,255,65,0.5);
+    margin-bottom: 8px;
+  }
+
+  .modal-stats {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .modal-stat { font-size: 12px; color: var(--dim); }
+  .modal-stat span { display: block; font-size: 22px; color: var(--green); font-family: var(--head); }
+
+  .flag-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .flag-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+  }
+
+  .flag-item.captured { border-color: rgba(0,255,65,0.3); background: rgba(0,255,65,0.03); }
+  .flag-item.pending  { opacity: 0.35; }
+
+  .flag-num {
+    font-family: var(--head);
+    font-size: 11px;
+    color: var(--dim);
+    width: 20px;
+    text-align: center;
+  }
+
+  .flag-level { flex: 1; }
+  .flag-pts { color: var(--green); font-family: var(--head); font-size: 12px; }
+  .flag-time { font-size: 10px; color: var(--dim); margin-left: auto; }
+
+  /* ── Loading spinner ──────────────────────────────────────── */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Misc ─────────────────────────────────────────────────── */
+  .refresh-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .refresh-info { font-size: 11px; color: var(--dim); }
+
+  .empty { color: var(--dim); text-align: center; padding: 40px; font-size: 13px; }
+
+  .winner-banner {
+    border: 1px solid var(--amber);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: none;
+    background: rgba(255,184,0,0.04);
+  }
+
+  .winner-banner.show { display: block; }
+  .winner-banner h3 { font-family: var(--head); font-size: 13px; color: var(--amber); letter-spacing: 0.2em; margin-bottom: 4px; }
+  .winner-banner p { font-size: 12px; color: var(--amber); opacity: 0.8; }
+
+  /* ── Responsive ───────────────────────────────────────────── */
+  @media (max-width: 600px) {
+    .lb-header, .lb-row { grid-template-columns: 32px 1fr 70px 60px; }
+    .lb-header > *:last-child, .lb-row > *:last-child { display: none; }
+    .ascii-logo { font-size: 4px; }
+    nav button { padding: 12px 16px; font-size: 11px; }
+    .panel { padding: 20px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="ascii-logo">██████╗ ██╗  ██╗██████╗ ██╗  ██╗██╗  ██╗████████╗ ██████╗ ███╗   ███╗
+██╔═████╗╚██╗██╔╝██╔══██╗██║  ██║██║  ██║╚══██╔══╝██╔═████╗████╗ ████║
+██║██╔██║ ╚███╔╝ ██████╔╝███████║███████║   ██║   ██║██╔██║██╔████╔██║
+████╔╝██║ ██╔██╗ ██╔═══╝ ██╔══██║╚════██║   ██║   ████╔╝██║██║╚██╔╝██║
+╚██████╔╝██╔╝ ██╗██║     ██║  ██║     ██║   ██║   ╚██████╔╝██║ ╚═╝ ██║
+ ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝     ╚═╝   ╚═╝    ╚═════╝ ╚═╝     ╚═╝</div>
+  <p class="tagline">Ghost in the Wire — ECORP Incident Response</p>
+  <p class="sub-tagline">Track the threat. Build the case. NetworkNinjas AIT</p>
+</header>
+
+<nav>
+  <button class="active" onclick="switchTab('submit')">⚑ Submit Flag</button>
+  <button onclick="switchTab('leaderboard')">◈ Leaderboard</button>
+</nav>
+
+<main>
+
+  <!-- ── Submit Tab ─────────────────────────────────────────── -->
+  <div id="tab-submit" class="tab-panel active">
+
+    <div class="panel">
+      <div class="panel-title">▸ Identify</div>
+      <div class="field">
+        <label>Team Name</label>
+        <input type="text" id="team-input" placeholder="enter your team name" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">▸ Submit Flag</div>
+      <div class="field">
+        <label>Flag</label>
+        <input type="text" id="flag-input" placeholder="GHOSTWIRE{...}" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label>Flag Number</label>
+        <select id="flagnum-select">
+          <option value="">— select —</option>
+          <option value="1">01 — Shell</option>
+          <option value="2">02 — Gate1 (Beacon)</option>
+          <option value="3">03 — PCAP</option>
+          <option value="4">04 — Stego</option>
+          <option value="5">05 — HashCrack</option>
+          <option value="6">06 — ReverseEng</option>
+          <option value="7">07 — Gate2 (FmtStr)</option>
+          <option value="8">08 — Docker</option>
+          <option value="9">09 — API</option>
+          <option value="10">10 — Final</option>
+        </select>
+      </div>
+      <button class="btn" id="submit-btn" onclick="submitFlag()">
+        <span id="submit-label">Submit</span>
+      </button>
+      <div class="status" id="submit-status"></div>
+      <div class="terminal" id="submit-log"></div>
+    </div>
+
+  </div>
+
+  <!-- ── Leaderboard Tab ────────────────────────────────────── -->
+  <div id="tab-leaderboard" class="tab-panel">
+
+    <div class="winner-banner" id="winner-banner">
+      <h3>🏁 CASE CLOSED</h3>
+      <p id="winner-text"></p>
+    </div>
+
+    <div class="refresh-row">
+      <span class="refresh-info" id="refresh-info">— last updated never —</span>
+      <button class="btn" onclick="loadLeaderboard()" style="padding:8px 18px;font-size:10px">↺ Refresh</button>
+    </div>
+
+    <div class="panel" style="padding:0;overflow:hidden">
+      <div class="lb-header">
+        <div>#</div>
+        <div>Team</div>
+        <div style="text-align:right">Points</div>
+        <div style="text-align:center">Flags</div>
+        <div>Progress</div>
+      </div>
+      <div id="lb-body">
+        <div class="empty">Loading...</div>
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+<!-- ── Team detail modal ─────────────────────────────────────── -->
+<div class="modal-bg" id="modal-bg" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <button class="modal-close" onclick="document.getElementById('modal-bg').classList.remove('open')">✕ close</button>
+    <div class="modal-team" id="modal-team"></div>
+    <div class="modal-stats" id="modal-stats"></div>
+    <div class="panel-title" style="font-size:10px;margin-bottom:12px">▸ Captured Flags</div>
+    <div class="flag-list" id="modal-flags"></div>
+  </div>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────
+const API = 'https://ghostwire-ctf.devsekarindhu18.workers.dev';
+// Replace with your actual CF Worker URL after deploying
+
+const FLAG_LEVELS = {
+  1:"Shell",2:"Gate1",3:"PCAP",4:"Stego",5:"HashCrack",
+  6:"ReverseEng",7:"Gate2",8:"Docker",9:"API",10:"Final"
+};
+const FLAG_POINTS = {1:100,2:150,3:150,4:150,5:150,6:200,7:200,8:200,9:150,10:300};
+
+// ── Tab switching ─────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'leaderboard') loadLeaderboard();
+}
+
+// ── Terminal log helper ───────────────────────────────────────
+function tlog(msg, type = '') {
+  const el = document.getElementById('submit-log');
+  el.style.display = 'block';
+  const line = document.createElement('div');
+  line.className = 't-line ' + type;
+  const ts = new Date().toLocaleTimeString('en-IN', { hour12: false });
+  line.textContent = `[${ts}] ${msg}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── Flag submission ───────────────────────────────────────────
+async function submitFlag() {
+  const team    = document.getElementById('team-input').value.trim();
+  const flag    = document.getElementById('flag-input').value.trim();
+  const flagNum = document.getElementById('flagnum-select').value;
+  const status  = document.getElementById('submit-status');
+  const btn     = document.getElementById('submit-btn');
+  const label   = document.getElementById('submit-label');
+
+  status.className = 'status';
+  status.style.display = 'none';
+
+  if (!team)    return showStatus('error', '[ ERR ] Enter your team name.');
+  if (!flag)    return showStatus('error', '[ ERR ] Enter the flag.');
+  if (!flagNum) return showStatus('error', '[ ERR ] Select flag number.');
+
+  btn.disabled = true;
+  label.innerHTML = '<span class="spinner"></span> Submitting...';
+  tlog(`Submitting flag ${flagNum} for team: ${team}`);
+
+  try {
+    const res = await fetch(`${API}/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ team_name: team, flag, flag_number: parseInt(flagNum) }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      tlog(`[✓] CORRECT — Flag ${flagNum}: ${FLAG_LEVELS[flagNum]}`, 'ok');
+      tlog(`[✓] +${data.points_earned} pts | Total: ${data.total_flags}/10 flags, ${data.total_points} pts`, 'ok');
+      if (data.is_final) {
+        tlog('[ CASE CLOSED — DarkNexus exposed. 0xPh4nt0m identified. ]', 'ok');
+      }
+      showStatus('ok', `✓ ${data.message}  —  ${data.total_flags}/10 flags · ${data.total_points} pts`);
+      document.getElementById('flag-input').value = '';
+    } else if (data.already) {
+      tlog(`[!] Flag ${flagNum} already submitted.`, 'warn');
+      showStatus('warn', `⚠ ${data.message}`);
+    } else {
+      tlog(`[✗] ${data.message}`, 'err');
+      showStatus('error', `✗ ${data.message}`);
+    }
+  } catch (err) {
+    tlog(`[ERR] ${err.message}`, 'err');
+    showStatus('error', `✗ Network error: ${err.message}`);
+  }
+
+  btn.disabled = false;
+  label.textContent = 'Submit';
+}
+
+function showStatus(type, msg) {
+  const el = document.getElementById('submit-status');
+  el.className = `status show ${type === 'ok' ? 'ok' : type === 'warn' ? 'warn' : 'err'}`;
+  el.textContent = msg;
+}
+
+// ── Leaderboard ───────────────────────────────────────────────
+let lbData = [];
+
+async function loadLeaderboard() {
+  document.getElementById('lb-body').innerHTML = '<div class="empty"><span class="spinner"></span> Fetching data...</div>';
+  try {
+    const res = await fetch(`${API}/leaderboard`);
+    lbData = await res.json();
+    renderLeaderboard();
+    document.getElementById('refresh-info').textContent =
+      `— updated ${new Date().toLocaleTimeString('en-IN', { hour12: false })} —`;
+  } catch (err) {
+    document.getElementById('lb-body').innerHTML = `<div class="empty" style="color:var(--red)">✗ Failed to load: ${err.message}</div>`;
+  }
+}
+
+function renderLeaderboard() {
+  const body = document.getElementById('lb-body');
+
+  if (!lbData.length) {
+    body.innerHTML = '<div class="empty">No teams registered yet.</div>';
+    return;
+  }
+
+  // Check for winner (10 flags)
+  const winner = lbData.find(t => parseInt(t.total_flags) === 10);
+  const wb = document.getElementById('winner-banner');
+  if (winner) {
+    wb.classList.add('show');
+    document.getElementById('winner-text').textContent =
+      `${winner.name} has solved all 10 flags with ${winner.total_points} points. Case closed.`;
+  }
+
+  body.innerHTML = lbData.map((team, idx) => {
+    const rank = idx + 1;
+    const rankClass = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
+    const rowClass  = rank <= 3 ? `top${rank}` : '';
+    const captured  = new Set((team.flags || []).map(f => f.flag_number));
+
+    const pips = Array.from({length:10}, (_,i) => {
+      const n = i+1;
+      const done = captured.has(n);
+      return `<div class="pip${done?' done':''}${n===10?' final':''}"></div>`;
+    }).join('');
+
+    return `
+      <div class="lb-row ${rowClass}" onclick="openTeamModal('${escHtml(team.name)}')">
+        <div class="rank ${rankClass}">${rank === 1 ? '▲' : rank === 2 ? '▲' : rank === 3 ? '▲' : rank}</div>
+        <div class="team-name">${escHtml(team.name)}</div>
+        <div class="pts">${team.total_points}</div>
+        <div class="flags-count">${team.total_flags}/10</div>
+        <div class="flag-pips">${pips}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Team modal ────────────────────────────────────────────────
+function openTeamModal(teamName) {
+  const team = lbData.find(t => t.name === teamName);
+  if (!team) return;
+
+  document.getElementById('modal-team').textContent = team.name;
+  document.getElementById('modal-stats').innerHTML = `
+    <div class="modal-stat"><span>${team.total_points}</span>Points</div>
+    <div class="modal-stat"><span>${team.total_flags}/10</span>Flags</div>
+    <div class="modal-stat"><span>${team.container_id || '—'}</span>Container</div>
+  `;
+
+  const captured = {};
+  (team.flags || []).forEach(f => { captured[f.flag_number] = f; });
+
+  document.getElementById('modal-flags').innerHTML = Array.from({length:10}, (_,i) => {
+    const n = i+1;
+    const f = captured[n];
+    const time = f?.submitted_at ? new Date(f.submitted_at).toLocaleTimeString('en-IN',{hour12:false}) : '';
+    return `
+      <div class="flag-item ${f ? 'captured' : 'pending'}">
+        <div class="flag-num">${String(n).padStart(2,'0')}</div>
+        <div class="flag-level">${FLAG_LEVELS[n]}</div>
+        <div class="flag-pts">${f ? '+'+FLAG_POINTS[n] : '—'}</div>
+        ${time ? `<div class="flag-time">${time}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modal-bg')) {
+    document.getElementById('modal-bg').classList.remove('open');
+  }
+}
+
+// ── Enter key submit ──────────────────────────────────────────
+document.getElementById('flag-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitFlag();
+});
+
+// ── Init ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Auto-refresh leaderboard every 30s when on that tab
+  setInterval(() => {
+    if (document.getElementById('tab-leaderboard').classList.contains('active')) {
+      loadLeaderboard();
+    }
+  }, 30000);
+});
+</script>
+</body>
+</html>
